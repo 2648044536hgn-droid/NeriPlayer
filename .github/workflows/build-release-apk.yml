@@ -1,0 +1,91 @@
+name: Build Signed Release APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit SHA to build
+        required: true
+        default: passthrough
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  GRADLE_OPTS: -Dorg.gradle.caching=true
+
+jobs:
+  build:
+    name: Assemble signed release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Prepare self-signed keystore
+        run: |
+          set -euo pipefail
+          # 固定口令的自用签名密钥：仅用于个人测试安装，不用于任何发布渠道
+          keytool -genkeypair \
+            -keystore app/neri.jks \
+            -storetype PKCS12 \
+            -storepass neriplayer \
+            -keypass neriplayer \
+            -alias key0 \
+            -keyalg RSA -keysize 4096 -validity 10000 \
+            -dname "CN=NeriPlayer Personal Build, OU=Personal, O=Personal, L=Local, ST=Local, C=CN"
+          echo "keystore generated"
+          base64 -w0 app/neri.jks > /tmp/keystore.b64
+          echo "keystore base64 (copy this for the fixed keystore file):"
+          echo "-----BEGIN KEYSTORE B64-----"
+          cat /tmp/keystore.b64
+          echo
+          echo "-----END KEYSTORE B64-----"
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Install Android NDK
+        uses: ./.github/actions/android-ndk
+
+      - name: Assemble signed release
+        env:
+          ORG_GRADLE_PROJECT_KEYSTORE_FILE: neri.jks
+          ORG_GRADLE_PROJECT_KEYSTORE_PASSWORD: neriplayer
+          ORG_GRADLE_PROJECT_KEY_ALIAS: key0
+          ORG_GRADLE_PROJECT_KEY_PASSWORD: neriplayer
+        run: ./gradlew :app:assembleRelease --warning-mode all --stacktrace
+
+      - name: Collect APKs
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          find app/build/outputs/apk/release -name '*.apk' -exec cp {} out/ \;
+          ls -lh out/
+
+      - name: Remove temporary keystore
+        if: always()
+        run: rm -f app/neri.jks
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: neriplayer-release-apk
+          path: out/*.apk
+          if-no-files-found: error
+          compression-level: 0
