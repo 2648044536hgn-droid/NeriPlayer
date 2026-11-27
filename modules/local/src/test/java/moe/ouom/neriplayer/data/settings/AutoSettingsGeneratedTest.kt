@@ -531,8 +531,9 @@ class AutoSettingsGeneratedTest {
     fun inheritedPlaybackSectionKeepsEveryGeneratedSetting() {
         val settings = AutoSettingsMetadata.settingsIn(AutoSettingsSections.playback)
 
-        assertEquals(45, settings.size)
-        assertEquals(45, settings.map { it.keyName }.toSet().size)
+        assertEquals(46, settings.size)
+        assertEquals(46, settings.map { it.keyName }.toSet().size)
+        assertTrue(settings.any { it.keyName == "floating_lyrics_touch_passthrough" })
         assertTrue(settings.any { it.keyName == "netease_play_history_sync_enabled" })
         assertTrue(settings.any { it.keyName == "bili_play_history_sync_enabled" })
         assertEquals(7, AutoSettingsSchema.playback.lanHostPermissions.defaultValue)
