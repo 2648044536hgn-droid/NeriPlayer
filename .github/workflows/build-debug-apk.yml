@@ -37,6 +37,9 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v5
 
+      - name: Install Maven Central mirror
+        run: install -Dm644 .github/scripts/maven-central-mirror.init.gradle "${GRADLE_USER_HOME:-$HOME/.gradle}/init.d/maven-central-mirror.init.gradle"
+
       - name: Grant execute permission
         run: chmod +x gradlew
 
